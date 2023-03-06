@@ -242,7 +242,7 @@ while True:
         img = img/255
         img = np.expand_dims(img,0)
         img = np.expand_dims(img,-1)
-        np.savetxt("show_data.txt",img[0,...,0],fmt='%.01f')
+        # np.savetxt("show_data.txt",img[0,...,0],fmt='%.01f')
         predict = model.call(img,ttraining=True)
         print(np.argmax(predict,axis=-1))
         predict = model.call(img,ttraining=False)
