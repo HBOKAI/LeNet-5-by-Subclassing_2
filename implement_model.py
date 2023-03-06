@@ -3,8 +3,13 @@ from tensorflow.keras import Sequential, layers, losses, optimizers, datasets
 from PIL import Image
 import numpy as np
 import cv2
+import csv
+import time
+
 np.set_printoptions(threshold=np.inf)# np.inf = 無窮大的浮點數，若矩陣數量大於threshold部分數值會以...代替
 np.set_printoptions(suppress=True)#抑制顯示小數位數
+def nothing(X):
+    pass
 
 def show_xy(event,x,y,flags,param):
     global dots, draw,img_gray                    # 定義全域變數
@@ -137,7 +142,7 @@ class Con_sp(tf.keras.layers.Layer):
             "filter_size":self.filter_size
         })
         return config  
- 
+
 class Early_Exit_Model(tf.keras.Model):
     def __init__(self, output_num=10, **kwargs):
         super(Early_Exit_Model,self).__init__(**kwargs)
@@ -163,12 +168,14 @@ class Early_Exit_Model(tf.keras.Model):
         x = self.activation(x)
         ee_layer_1 = self.flatten(x)
         ee_layer_1_output = self.ee_Dense_outputs1(ee_layer_1)
+        info = {"Exit_1_entropy":0.0,"Exit_2_entropy":0.0,"Exit_3_entropy":0.0,"Exit_4_entropy":0.0,"Exit_5_entropy":0.0}
         if(ttraining == False):
             val = cross_entropy(ee_layer_1_output)
-            print("No.1 soft cross entropy",val)
+            info.update({"Exit_1_entropy":val})
+            # print("No.1 soft cross entropy",val)
             if(val<0.2):
                 stop_predict = True
-                return ee_layer_1_output
+                return ee_layer_1_output,info
             
         if(stop_predict != True):
             x = self.averagepooling(x)
@@ -178,10 +185,11 @@ class Early_Exit_Model(tf.keras.Model):
             ee_layer_2_output = self.ee_Dense_outputs2(ee_layer_2)
             if(ttraining == False):
                 val = cross_entropy(ee_layer_2_output)
-                print("No.2 soft cross entropy",val)
+                info.update({"Exit_2_entropy":val})
+                # print("No.2 soft cross entropy",val)
                 if(val<0.2):
                     stop_predict = True
-                    return ee_layer_2_output
+                    return ee_layer_2_output,info
                 
         if(stop_predict != True):    
             x = self.averagepooling(x)
@@ -189,27 +197,31 @@ class Early_Exit_Model(tf.keras.Model):
             ee_layer_3_output = self.ee_Dense_outputs3(x)
             if(ttraining == False):
                 val = cross_entropy(ee_layer_3_output)
-                print("No.3 soft cross entropy",val)
+                info.update({"Exit_3_entropy":val})
+                # print("No.3 soft cross entropy",val)
                 if(val<0.2):
                     stop_predict = True
-                    return ee_layer_3_output
+                    return ee_layer_3_output,info
                 
         if(stop_predict != True):
             x = self.Dense_1(x)
             ee_layer_4_output = self.ee_Dense_outputs4(x)
             if(ttraining == False):
                 val = cross_entropy(ee_layer_4_output)
-                print("No.4 soft cross entropy",val)
+                info.update({"Exit_4_entropy":val})
+                # print("No.4 soft cross entropy",val)
                 if(val<0.2):
                     stop_predict = True
-                    return ee_layer_4_output
+                    return ee_layer_4_output,info
                 
         if(stop_predict != True):
             x = self.Dense_2(x)
             output_ = self.output_layer(x)
-            # outputs = self.output_layer(x)
             if(ttraining==False):
-                return output_
+                val = cross_entropy(output_)
+                info.update({"Exit_5_entropy":val})
+                
+                return output_,info
             else:
                 return [ee_layer_1_output,ee_layer_2_output,ee_layer_3_output,ee_layer_4_output,output_]
     def build_graph(self):
@@ -217,17 +229,22 @@ class Early_Exit_Model(tf.keras.Model):
         return tf.keras.Model(inputs=[x],outputs=self.call(x))
 
 model = Early_Exit_Model()
-model.build(input_shape=(None,32,32,1))
-model.compile(loss="categorical_crossentropy",optimizer=tf.keras.optimizers.Adam(),metrics=["accuracy"]) 
 model.load_weights('./Model/SAVE_WEIGHTS/SW')
 
+csvfile = open('info.csv','a+')
+r = csv.writer(csvfile)
+r.writerow(['',"Exit_1_entropy","Exit_2_entropy","Exit_3_entropy","Exit_4_entropy","Exit_5_entropy","predict_number","correct_number","rate"])
 input_times = 0
 correct_times = 0
+
+
 
 dots = []   # 建立空陣列記錄座標
 w = 320
 h = 320
 draw = np.zeros((h,w,3), dtype='uint8')   # 建立 420x240 的 RGBA 黑色畫布
+cv2.namedWindow('img')
+cv2.createTrackbar('Num','img',0,9,nothing)
 while True:
     cv2.imshow('img', draw)
     cv2.setMouseCallback('img', show_xy)
@@ -243,17 +260,30 @@ while True:
         img = np.expand_dims(img,0)
         img = np.expand_dims(img,-1)
         # np.savetxt("show_data.txt",img[0,...,0],fmt='%.01f')
-        predict = model.call(img,ttraining=True)
-        print(np.argmax(predict,axis=-1))
-        predict = model.call(img,ttraining=False)
+
+        # predict = model.call(img,ttraining=True)
+        # print(np.argmax(predict,axis=-1))
+        start = time.time()
+        predict,info = model.call(img,ttraining=False)
+        end = time.time()
         predict_num = np.argmax(predict, axis=-1)
         print('預測結果:\n',predict_num)
-        innum = input("輸入正確的數字: ")
+        # innum = input("輸入正確的數字: ")
+        innum = cv2.getTrackbarPos('Num','img')
         if(int(innum) == predict_num):
             correct_times += 1
         input_times += 1
-        print(f"輸入次數: {input_times}, 正確次數: {correct_times}, 正確率: {(correct_times/input_times)*100}%")
+        counter = 0
+        for key,val in info.items():
+            counter += 1
+            if (val<0.2):
+                break
+        r.writerow([input_times,np.float32(info["Exit_1_entropy"]),np.float32(info["Exit_2_entropy"]),np.float32(info["Exit_3_entropy"]),np.float32(info["Exit_4_entropy"]),np.float32(info["Exit_4_entropy"]),predict_num,innum,f"{(correct_times/input_times)*100}%"])
+        print(f"NO.{input_times}, 預測值: {predict_num[0]}, 正確值: {innum}, 正確率: {(correct_times/input_times)*100}%, 耗時: {end-start}, 第{counter}個出口退出")
         draw = np.zeros((h,w,3), dtype='uint8')
+
     if keyboard == ord('r'):
         draw = np.zeros((h,w,3), dtype='uint8')  # 按下 r 就變成原本全黑的畫布
         cv2.imshow('img', draw)
+
+cv2.destroyAllWindows()
