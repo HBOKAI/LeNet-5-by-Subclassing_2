@@ -268,7 +268,6 @@ while True:
         end = time.time()
         predict_num = np.argmax(predict, axis=-1)
         print('預測結果:\n',predict_num)
-        # innum = input("輸入正確的數字: ")
         innum = cv2.getTrackbarPos('Num','img')
         if(int(innum) == predict_num):
             correct_times += 1
