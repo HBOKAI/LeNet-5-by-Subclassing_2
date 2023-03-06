@@ -1,0 +1,2 @@
+model_checkpoint_path: "SW"
+all_model_checkpoint_paths: "SW"
