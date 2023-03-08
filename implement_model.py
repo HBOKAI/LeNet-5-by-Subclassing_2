@@ -162,7 +162,7 @@ class Early_Exit_Model(tf.keras.Model):
         self.ee_Dense_outputs3 = layers.Dense(10,activation='softmax')
         self.ee_Dense_outputs4 = layers.Dense(10,activation='softmax')
 
-    def call(self,inputs,ttraining=True,**kwargs):
+    def call(self,inputs,ttraining=True,select=0,**kwargs):
         stop_predict = False
         x = self.convolution_1(inputs)
         x = self.activation(x)
@@ -173,7 +173,7 @@ class Early_Exit_Model(tf.keras.Model):
             val = cross_entropy(ee_layer_1_output)
             info.update({"Exit_1_entropy":val})
             # print("No.1 soft cross entropy",val)
-            if(val<0.2):
+            if(val<0.2 or select==1):
                 stop_predict = True
                 return ee_layer_1_output,info
             
@@ -187,7 +187,7 @@ class Early_Exit_Model(tf.keras.Model):
                 val = cross_entropy(ee_layer_2_output)
                 info.update({"Exit_2_entropy":val})
                 # print("No.2 soft cross entropy",val)
-                if(val<0.2):
+                if(val<0.2 or select==2):
                     stop_predict = True
                     return ee_layer_2_output,info
                 
@@ -199,7 +199,7 @@ class Early_Exit_Model(tf.keras.Model):
                 val = cross_entropy(ee_layer_3_output)
                 info.update({"Exit_3_entropy":val})
                 # print("No.3 soft cross entropy",val)
-                if(val<0.2):
+                if(val<0.2 or select==3):
                     stop_predict = True
                     return ee_layer_3_output,info
                 
@@ -210,7 +210,7 @@ class Early_Exit_Model(tf.keras.Model):
                 val = cross_entropy(ee_layer_4_output)
                 info.update({"Exit_4_entropy":val})
                 # print("No.4 soft cross entropy",val)
-                if(val<0.2):
+                if(val<0.2 or select==4):
                     stop_predict = True
                     return ee_layer_4_output,info
                 
@@ -238,51 +238,83 @@ input_times = 0
 correct_times = 0
 
 
-
-dots = []   # 建立空陣列記錄座標
-w = 320
-h = 320
-draw = np.zeros((h,w,3), dtype='uint8')   # 建立 420x240 的 RGBA 黑色畫布
-cv2.namedWindow('img')
-cv2.createTrackbar('Num','img',0,9,nothing)
-while True:
-    cv2.imshow('img', draw)
-    cv2.setMouseCallback('img', show_xy)
-    keyboard = cv2.waitKey(5)                    # 每 5 毫秒偵測一次鍵盤事件
-    if keyboard == ord('q'):
-        break                                    # 按下 q 就跳出
-
-    if keyboard == ord('n'):
-        img_gray = cv2.cvtColor(draw, cv2.COLOR_BGR2GRAY)   # 轉為灰度圖
-        img = cv2.resize(img_gray,(32,32))                          # 變更圖片尺寸
-        cv2.imwrite(".\images\gray.png",img)
-        img = img/255
-        img = np.expand_dims(img,0)
-        img = np.expand_dims(img,-1)
-        # np.savetxt("show_data.txt",img[0,...,0],fmt='%.01f')
-
-        # predict = model.call(img,ttraining=True)
-        # print(np.argmax(predict,axis=-1))
-        start = time.time()
-        predict,info = model.call(img,ttraining=False)
-        end = time.time()
-        predict_num = np.argmax(predict, axis=-1)
-        print('預測結果:\n',predict_num)
+a = input("輸入使用模式 img or write: ")
+if (a == "img"):
+    img = cv2.imread("./test_img/testimg6.png",flags=0)
+    show_img = cv2.resize(img,(320,320))
+    cv2.imshow("img",show_img)
+    cv2.namedWindow('img')
+    cv2.createTrackbar('Num','img',0,9,nothing)
+    cv2.createTrackbar('Select','img',0,5,nothing)
+    img = np.array(img)/255
+    img = np.expand_dims(img,0)
+    img = np.expand_dims(img,-1) 
+    while True:
+        keyboard = cv2.waitKey(5)
+        exit_select = cv2.getTrackbarPos('Select','img')
         innum = cv2.getTrackbarPos('Num','img')
-        if(int(innum) == predict_num):
-            correct_times += 1
-        input_times += 1
-        counter = 0
-        for key,val in info.items():
-            counter += 1
-            if (val<0.2):
-                break
-        r.writerow([input_times,np.float32(info["Exit_1_entropy"]),np.float32(info["Exit_2_entropy"]),np.float32(info["Exit_3_entropy"]),np.float32(info["Exit_4_entropy"]),np.float32(info["Exit_4_entropy"]),predict_num,innum,f"{(correct_times/input_times)*100}%"])
-        print(f"NO.{input_times}, 預測值: {predict_num[0]}, 正確值: {innum}, 正確率: {(correct_times/input_times)*100}%, 耗時: {end-start}, 第{counter}個出口退出")
-        draw = np.zeros((h,w,3), dtype='uint8')
-
-    if keyboard == ord('r'):
-        draw = np.zeros((h,w,3), dtype='uint8')  # 按下 r 就變成原本全黑的畫布
+        if keyboard == ord('n'):
+            start = time.time()
+            predict,info = model.call(img,ttraining=False,select=exit_select)
+            end = time.time()
+            predict_num = np.argmax(predict, axis=-1)
+            print('預測結果:\n',predict_num)
+            counter = 0
+            for key,val in info.items():
+                if (val<0.2):
+                    break
+                counter += 1
+            print(f"預測值: {predict_num[0]}, 正確值: {innum}, 耗時: {end-start}, 第{counter}個出口退出")
+        if keyboard == ord('q'):
+            break
+else:
+    dots = []   # 建立空陣列記錄座標
+    w = 320
+    h = 320
+    draw = np.zeros((h,w,3), dtype='uint8')   # 建立 420x240 的 RGBA 黑色畫布
+    cv2.namedWindow('img')
+    cv2.createTrackbar('Num','img',0,9,nothing)
+    cv2.createTrackbar('Exit_Select','img',0,5,nothing)
+    while True:
         cv2.imshow('img', draw)
+        cv2.setMouseCallback('img', show_xy)
+        keyboard = cv2.waitKey(5)                    # 每 5 毫秒偵測一次鍵盤事件
+        if keyboard == ord('q'):
+            break                                    # 按下 q 就跳出
+
+        if keyboard == ord('n'):
+            img_gray = cv2.cvtColor(draw, cv2.COLOR_BGR2GRAY)   # 轉為灰度圖
+            img = cv2.resize(img_gray,(32,32))                          # 變更圖片尺寸
+            cv2.imwrite(".\images\gray.png",img)
+            img = img/255
+            img = np.expand_dims(img,0)
+            img = np.expand_dims(img,-1)
+            # np.savetxt("show_data.txt",img[0,...,0],fmt='%.01f')
+
+            # predict = model.call(img,ttraining=True)
+            # print(np.argmax(predict,axis=-1))
+            exit_select = cv2.getTrackbarPos('Exit_Select','img')
+            start = time.time()
+            predict,info = model.call(img,ttraining=False,select=exit_select)
+            end = time.time()
+            predict_num = np.argmax(predict, axis=-1)
+            print('預測結果:\n',predict_num)
+            innum = cv2.getTrackbarPos('Num','img')
+            if(innum == predict_num):
+                correct_times += 1
+            input_times += 1
+            counter = 0
+            for key,val in info.items():
+                
+                if (val<0.2):
+                    break
+                counter += 1
+            r.writerow([input_times,np.float32(info["Exit_1_entropy"]),np.float32(info["Exit_2_entropy"]),np.float32(info["Exit_3_entropy"]),np.float32(info["Exit_4_entropy"]),np.float32(info["Exit_4_entropy"]),predict_num,innum,f"{(correct_times/input_times)*100}%"])
+            print(f"NO.{input_times}, 預測值: {predict_num[0]}, 正確值: {innum}, 正確率: {(correct_times/input_times)*100}%, 耗時: {end-start}, 第{counter}個出口退出")
+            draw = np.zeros((h,w,3), dtype='uint8')
+
+        if keyboard == ord('r'):
+            draw = np.zeros((h,w,3), dtype='uint8')  # 按下 r 就變成原本全黑的畫布
+            cv2.imshow('img', draw)
 
 cv2.destroyAllWindows()

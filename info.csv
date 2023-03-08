@@ -38,3 +38,4 @@
 
 19,1.2587663,1.5272332,1.639597,0.93018544,0.93018544,[2]
 
+,Exit_1_entropy,Exit_2_entropy,Exit_3_entropy,Exit_4_entropy,Exit_5_entropy,predict_number,correct_number,rate
