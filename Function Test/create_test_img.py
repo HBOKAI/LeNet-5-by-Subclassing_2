@@ -33,7 +33,7 @@ while True:
         img_gray = cv2.cvtColor(draw, cv2.COLOR_BGR2GRAY)   # 轉為灰度圖
         img = cv2.resize(img_gray,(32,32))                          # 變更圖片尺寸
         i+=1
-        cv2.imwrite(f"./test_img/testimg{i}.png",img)
+        cv2.imwrite(f"./test_img/9/testimg{i}.png",img)
         draw = np.zeros((h,w,3), dtype='uint8')
 
     if keyboard == ord('r'):
